@@ -1,0 +1,39 @@
+# ============================================================================
+# Document Intelligence Platform - Complete Requirements
+# ============================================================================
+
+# Backend Framework
+fastapi==0.110.0
+uvicorn==0.27.1
+python-multipart==0.0.9
+python-dotenv==1.0.0
+
+# HTTP requests for API calls
+requests==2.31.0
+
+# Document Parsing
+pypdf==4.1.0
+python-docx==1.1.0
+
+# NLP / Text Processing / Token Counting
+sentence-transformers==2.6.1
+tiktoken==0.6.0
+
+# Vector Database / Semantic Search
+faiss-cpu==1.13.2
+
+# LLM Orchestration & Integration
+langchain==0.1.16
+langchain-community==0.0.32
+
+# Frontend
+streamlit==1.32.0
+streamlit-chat==0.1.1
+
+# Data Processing & Serialization
+numpy==1.24.3
+pandas==2.0.3
+
+# Utilities
+pydantic==2.0.0
+pydantic-settings==2.0.0
