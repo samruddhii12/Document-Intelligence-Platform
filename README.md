@@ -1,165 +1,145 @@
-# Document Intelligence Platform
+# DocMind — Document Intelligence Platform
 
-A privacy-first document summarization and Q&A system built with FastAPI, Streamlit, and local LLM integration using Ollama.
+A privacy-first document Q&A system that lets you upload any PDF or DOCX file and have a conversation with it — entirely on your local machine, no data sent anywhere.
 
-## Use Cases
+---
 
-- **Document Summarization** — Automatically extract and summarize key information from PDF and DOCX files
-- **Intelligent Q&A** — Ask questions about your documents and get accurate answers based on document content
-- **Multi-Document Search** — Search across multiple uploaded documents using semantic search
-- **Privacy-First** — All processing happens locally; no data sent to external servers
-- **Session Management** — Organize conversations by document sessions with persistent storage
+## What It Does
 
-## Features
+Upload a document, ask questions in plain language, and get accurate answers grounded in the document's content. Everything runs locally using open-source models.
 
-- Upload PDF and DOCX documents
-- Split documents into chunks for better context retrieval
-- Generate embeddings using sentence transformers
-- Semantic search using FAISS vector database
-- Chat with documents using local Ollama LLM
-- Delete sessions and manage documents
-- RESTful API backend with CORS support
-- Clean, modern Streamlit UI
+- **Document Q&A** — Ask anything about your uploaded document and get context-aware answers
+- **Semantic Search** — Finds the most relevant sections of your document, not just keyword matches
+- **Reranking** — Retrieved chunks are reranked by a cross-encoder for higher answer quality
+- **Chat History** — Every Q&A session is saved per document and restored across page reloads
+- **Session Management** — Each uploaded document gets its own isolated session with stored embeddings
+- **Fully Local** — No API keys, no cloud, no data leaves your machine
 
-## Requirements
+---
 
-### System Requirements
-- Python 3.8+
-- 4GB+ RAM (minimum)
-- Ollama installed and running locally
+## Tech Stack
 
-### Dependencies
-All Python dependencies are listed in `requirements.txt`:
-```
-fastapi, uvicorn, streamlit, sentence-transformers, faiss-cpu, langchain, etc.
-```
+| Layer | Technology |
+|-------|-----------|
+| Frontend | Streamlit |
+| Backend | FastAPI |
+| Embeddings | `sentence-transformers` (all-mpnet-base-v2) |
+| Vector Search | FAISS |
+| Reranking | CrossEncoder (ms-marco-MiniLM-L-6-v2) |
+| LLM | Ollama (tinyllama by default) |
+| Text Extraction | pypdf, python-docx |
+| Tokenization | tiktoken |
+
+---
 
 ## Quick Start
 
-### 1. Clone/Extract the Project
-```bash
-cd "Document Intelligence Platform"
-```
-
-### 2. Create Virtual Environment
+**1. Create and activate a virtual environment**
 ```bash
 python -m venv venv
-.\venv\Scripts\Activate.ps1  # Windows PowerShell
-# or
-venv\Scripts\activate  # Windows CMD
+.\venv\Scripts\Activate.ps1   # Windows PowerShell
+source venv/bin/activate       # macOS / Linux
 ```
 
-### 3. Install Dependencies
+**2. Install dependencies**
 ```bash
 pip install -r requirements.txt
 ```
 
-### 4. Install & Run Ollama
+**3. Install Ollama and pull the model**
 ```bash
-# Download from https://ollama.ai
-# After installation, pull the model:
+# Download from https://ollama.ai, then:
 ollama pull tinyllama
-# Keep Ollama running in the background
 ```
 
-### 5. Start Backend
+**4. Start the backend**
 ```bash
 uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-### 6. Start Frontend (in new terminal)
+**5. Start the frontend** (new terminal)
 ```bash
-cd Document Intelligence Platform
 streamlit run frontend/app.py
 ```
 
-### 7. Access the App
-- Frontend: `http://localhost:8501`
-- Backend API: `http://localhost:8000`
-- API Docs: `http://localhost:8000/docs`
+**6. Open in browser**
+- App → `http://localhost:8501`
+- API docs → `http://localhost:8000/docs`
 
-## Project Structure
+---
+
+## How It Works
+
+1. **Upload** — File is saved to a unique session folder on disk
+2. **Embed** — Document is extracted, split into overlapping token chunks, and embedded using a sentence transformer model
+3. **Index** — Embeddings are stored in a FAISS index alongside the raw chunks
+4. **Query** — Your question is embedded, top-K similar chunks are retrieved from FAISS, reranked by a cross-encoder, and passed as context to the LLM
+5. **Answer** — The local Ollama model generates an answer strictly based on the retrieved context
+6. **History** — Each Q&A pair is appended to a `history.json` file inside the session folder
+
+---
+
+## Codebase
 
 ```
-Document Intelligence Platform/
+DocMind/
 ├── backend/
-│   ├── main.py                 # FastAPI app
+│   ├── main.py                 # FastAPI app entry point, router registration
 │   ├── api/
-│   │   ├── upload.py          # Document upload endpoint
-│   │   ├── chat.py            # Chat/Q&A endpoint
-│   │   └── delete.py          # Session delete endpoint
+│   │   ├── upload.py           # POST /upload — saves file, creates session
+│   │   ├── chat.py             # POST /embed, POST /chat, GET /history
+│   │   └── delete.py           # DELETE /session/{id} — wipes session folder
 │   ├── services/
-│   │   ├── chunker.py         # Document chunking
-│   │   ├── embeddings.py      # Embedding generation
-│   │   ├── llm.py             # Ollama LLM integration
-│   │   ├── text_extractor.py  # PDF/DOCX extraction
-│   │   ├── vector_store.py    # FAISS management
-│   │   └── summarizer.py      # Document summarization
+│   │   ├── text_extractor.py   # Extracts text from PDF and DOCX
+│   │   ├── chunker.py          # Paragraph-aware token chunking with overlap
+│   │   ├── embeddings.py       # Generates embeddings via sentence-transformers
+│   │   ├── vector_store.py     # FAISS index creation, search, and reranking
+│   │   └── llm.py              # Sends prompt + context to local Ollama model
 │   ├── models/
-│   │   └── schemas.py         # Pydantic models
+│   │   └── schemas.py          # Pydantic request/response schemas
 │   ├── storage/
-│   │   └── sessions/          # Session data & embeddings
+│   │   └── sessions/           # Per-session folders: file, chunks, index, history
 │   └── utils/
-│       └── cleanup.py         # Cleanup utilities
-├── frontend/
-│   └── app.py                 # Streamlit UI
-└── requirements.txt           # Python dependencies
+│       └── cleanup.py          # Deletes session folder on request
+└── frontend/
+    └── app.py                  # Streamlit UI — upload, chat, history display
 ```
 
-## API Endpoints
+---
+
+## API Reference
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/` | Health check |
-| POST | `/upload` | Upload document |
-| POST | `/chat` | Chat with document |
-| DELETE | `/delete/{session_id}` | Delete session |
+| POST | `/upload` | Upload a PDF or DOCX file |
+| POST | `/embed/{session_id}` | Extract, chunk, and index the document |
+| POST | `/chat/{session_id}` | Ask a question, get an answer |
+| GET | `/history/{session_id}` | Fetch saved Q&A history for a session |
+| DELETE | `/session/{session_id}` | Delete session and all associated data |
+
+---
 
 ## Configuration
 
-### Change LLM Model
-Edit `backend/services/llm.py`:
+**Change the LLM model** in `backend/services/llm.py`:
 ```python
-MODEL_NAME = "tinyllama"  # Change to any installed Ollama model
+MODEL_NAME = "tinyllama"  # any model pulled via ollama
 ```
 
-Available Ollama models:
-- `tinyllama` — Lightweight, fast (default)
-- `llama2` — Better quality, slower
-- `neural-chat` — Optimized for chat
+**Change chunk size** in `backend/services/chunker.py`:
+```python
+chunk_size = 500   # tokens per chunk
+overlap    = 100   # token overlap between chunks
+```
 
-### Customize Chunk Size
-Edit `backend/services/chunker.py` to adjust document chunking behavior.
+---
 
 ## Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| `ModuleNotFoundError: No module named 'streamlit'` | Run `pip install -r requirements.txt` |
-| `Connection refused (localhost:11434)` | Ensure Ollama is running |
+| Problem | Fix |
+|---------|-----|
+| `Connection refused (port 11434)` | Start Ollama — it must be running in the background |
 | `Model not found: tinyllama` | Run `ollama pull tinyllama` |
-| `CORS error` | Backend CORS is enabled for all origins (localhost) |
-
-## Performance Tips
-
-- Use `tinyllama` for fast responses on CPU
-- Increase chunk size for better context (harder on memory)
-- Upload smaller documents first for testing
-- Keep Ollama running in a separate terminal
-
-## Future Enhancements
-
-- [ ] Support for more document formats (Excel, PPT)
-- [ ] Multi-language support
-- [ ] User authentication
-- [ ] Document versioning
-- [ ] Export conversation history
-- [ ] Custom prompt templates
-
-## License
-
-MIT
-
-## Contact
-
-For issues or questions, contact the development team.
+| Slow first response | Models and embeddings load once on startup; subsequent calls are faster |
+| Empty answers | Try rephrasing your question or increasing `top_k` in the chat request |
