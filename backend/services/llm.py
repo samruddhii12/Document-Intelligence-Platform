@@ -1,7 +1,7 @@
 import requests
 
 OLLAMA_URL = "http://localhost:11434/api/generate"
-MODEL_NAME = "llama3"  # Use small model for low RAM systems
+MODEL_NAME = "tinyllama"  # Use small model for low RAM systems
 
 
 def generate_answer(context: str, question: str) -> str:

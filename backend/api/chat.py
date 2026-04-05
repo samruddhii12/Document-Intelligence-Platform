@@ -201,11 +201,41 @@ def chat_with_document(session_id: str, payload: ChatRequest):
 
     # Step 4: call LLM
     answer = generate_answer(context, query)
+    history_path = os.path.join(session_path, "history.json")
+
+
+    if os.path.exists(history_path):
+        with open(history_path, "r", encoding="utf-8") as f:
+            history = json.load(f)
+    else:
+        history = []
+
+    # Append new entry
+    history.append({
+        "question": query,
+        "answer": answer,
+        "timestamp": __import__("datetime").datetime.now().isoformat()
+    })
+
+    # Save back
+    with open(history_path, "w", encoding="utf-8") as f:
+        json.dump(history, f, ensure_ascii=False, indent=2)
 
     return {
         "question": query,
         "answer": answer
     }
-    print("Retrieved:", len(retrieved_chunks))
-    print("After rerank:", len(best_chunks))
+    
+@router.get("/history/{session_id}")
+def get_history(session_id: str):
+    session_path = os.path.join(BASE_STORAGE, session_id)
+    history_path = os.path.join(session_path, "history.json")
+
+    if not os.path.exists(history_path):
+        return {"session_id": session_id, "history": []}
+
+    with open(history_path, "r", encoding="utf-8") as f:
+        history = json.load(f)
+
+    return {"session_id": session_id, "history": history}
 
