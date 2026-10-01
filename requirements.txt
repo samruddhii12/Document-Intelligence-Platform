@@ -31,9 +31,9 @@ streamlit==1.32.0
 streamlit-chat==0.1.1
 
 # Data Processing & Serialization
-numpy==1.24.3
+numpy==1.26.4
 pandas==2.0.3
 
 # Utilities
-pydantic==2.0.0
+pydantic==2.6.4
 pydantic-settings==2.0.0
