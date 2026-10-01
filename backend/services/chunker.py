@@ -1,7 +1,7 @@
 from typing import List
 import tiktoken
 import re
-
+from backend.config import CHUNK_SIZE, CHUNK_OVERLAP
 
 def split_into_paragraphs(text: str) -> List[str]:
     """
@@ -13,8 +13,8 @@ def split_into_paragraphs(text: str) -> List[str]:
 
 def chunk_single_text(
     text: str,
-    chunk_size: int = 500,
-    overlap: int = 100,
+    chunk_size: int = CHUNK_SIZE,
+    overlap: int = CHUNK_OVERLAP,
     model_name: str = "gpt-3.5-turbo"
 ) -> List[str]:
     """
@@ -49,8 +49,8 @@ def chunk_single_text(
 
 def chunk_text(
     text: str,
-    chunk_size: int = 500,
-    overlap: int = 100,
+    chunk_size: int = CHUNK_SIZE,
+    overlap: int = CHUNK_OVERLAP,
     model_name: str = "gpt-3.5-turbo"
 ) -> List[str]:
     """

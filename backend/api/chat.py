@@ -14,19 +14,24 @@ from backend.services.llm import generate_answer
 from pydantic import BaseModel
 
 import json
+from backend.config import (
+    STORAGE_DIR,
+    RETRIEVAL_TOP_K,
+    RERANK_TOP_N,
+)
+
 
 router = APIRouter()
 
-BASE_STORAGE = "backend/storage/sessions"
 
 class ChatRequest(BaseModel):
     query: str
-    top_k: int = 10
+    top_k: int = RETRIEVAL_TOP_K
 
 
 @router.get("/extract/{session_id}")
 def extract_document_text(session_id: str):
-    session_path = os.path.join(BASE_STORAGE, session_id)
+    session_path = session_path = os.path.join(STORAGE_DIR, session_id)
 
     if not os.path.exists(session_path):
         raise HTTPException(status_code=404, detail="Session not found")
@@ -51,7 +56,7 @@ def extract_document_text(session_id: str):
 
 @router.get("/chunk/{session_id}")
 def chunk_document(session_id: str):
-    session_path = os.path.join(BASE_STORAGE, session_id)
+    session_path = session_path = os.path.join(STORAGE_DIR, session_id)
 
     if not os.path.exists(session_path):
         raise HTTPException(status_code=404, detail="Session not found")
@@ -75,7 +80,7 @@ def chunk_document(session_id: str):
 
 @router.post("/embed/{session_id}")
 def embed_document(session_id: str):
-    session_path = os.path.join(BASE_STORAGE, session_id)
+    session_path = os.path.join(STORAGE_DIR, session_id)
 
     if not os.path.exists(session_path):
         raise HTTPException(status_code=404, detail="Session not found")
@@ -114,7 +119,7 @@ def embed_document(session_id: str):
 
 @router.post("/retrieve/{session_id}")
 def retrieve_chunks(session_id: str, query: str):
-    session_path = os.path.join(BASE_STORAGE, session_id)
+    session_path = os.path.join(STORAGE_DIR, session_id)
 
     if not os.path.exists(session_path):
         raise HTTPException(status_code=404, detail="Session not found")
@@ -153,7 +158,7 @@ def retrieve_chunks(session_id: str, query: str):
 
 @router.post("/chat/{session_id}")
 def chat_with_document(session_id: str, payload: ChatRequest):
-    session_path = os.path.join(BASE_STORAGE, session_id)
+    session_path = os.path.join(STORAGE_DIR, session_id)
 
     if not os.path.exists(session_path):
         raise HTTPException(status_code=404, detail="Session not found")
@@ -228,7 +233,7 @@ def chat_with_document(session_id: str, payload: ChatRequest):
     
 @router.get("/history/{session_id}")
 def get_history(session_id: str):
-    session_path = os.path.join(BASE_STORAGE, session_id)
+    session_path = os.path.join(STORAGE_DIR, session_id)
     history_path = os.path.join(session_path, "history.json")
 
     if not os.path.exists(history_path):
