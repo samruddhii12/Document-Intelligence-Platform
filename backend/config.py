@@ -28,3 +28,11 @@ CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "100"))
 
 RETRIEVAL_TOP_K = int(os.getenv("RETRIEVAL_TOP_K", "10"))
 RERANK_TOP_N = int(os.getenv("RERANK_TOP_N", "5"))
+
+DATABASE_URL = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    raise RuntimeError(
+        "DATABASE_URL is not configured. "
+        "Set it in your .env file."
+    )

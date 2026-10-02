@@ -1,25 +1,83 @@
-import os
 import uuid
-from fastapi import APIRouter, UploadFile, File, HTTPException
+
+from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from sqlalchemy.orm import Session
+
+from backend.database import get_db
 from backend.models.schemas import UploadResponse
-from backend.config import STORAGE_DIR
+from backend.repositories.doc_repo import create_document
+from backend.repositories.workspace_repo import create_workspace
+from backend.services.storage import save_document
+
 
 router = APIRouter()
 
-# BASE_STORAGE = STORAGE_DIR
 
 @router.post("/upload", response_model=UploadResponse)
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    if not file.filename:
+        raise HTTPException(
+            status_code=400,
+            detail="Filename is required",
+        )
+
     if not file.filename.lower().endswith((".pdf", ".docx")):
-        raise HTTPException(status_code=400, detail="Only PDF and DOCX allowed")
+        raise HTTPException(
+            status_code=400,
+            detail="Only PDF and DOCX allowed",
+        )
 
-    session_id = str(uuid.uuid4())
-    session_path = os.path.join(STORAGE_DIR, session_id)
-    os.makedirs(session_path, exist_ok=True)
+    content = await file.read()
 
-    file_path = os.path.join(session_path, file.filename)
+    if not content:
+        raise HTTPException(
+            status_code=400,
+            detail="Uploaded file is empty",
+        )
 
-    with open(file_path, "wb") as f:
-        f.write(await file.read())
+    document_id = uuid.uuid4()
+    session_id = str(document_id)
 
-    return UploadResponse(session_id=session_id, filename=file.filename)
+    try:
+        file_path = save_document(
+            session_id=session_id,
+            filename=file.filename,
+            content=content,
+        )
+
+        workspace = create_workspace(
+            db=db,
+            name=f"Workspace - {file.filename}",
+        )
+
+        file_type = file.filename.rsplit(".", 1)[-1].lower()
+
+        create_document(
+            db=db,
+            document_id=document_id,
+            workspace_id=workspace.id,
+            filename=file.filename,
+            file_type=file_type,
+            storage_path=str(file_path),
+            status="uploaded",
+        )
+
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=400,
+            detail=str(exc),
+        ) from exc
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to save uploaded document",
+        ) from exc
+
+    return UploadResponse(
+        session_id=session_id,
+        filename=file.filename,
+    )
