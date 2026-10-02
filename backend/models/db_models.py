@@ -11,7 +11,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -239,6 +239,10 @@ class Message(Base):
         Text,
         nullable=False,
     )
+    sources: Mapped[list[dict] | None] = mapped_column(
+    JSONB,
+    nullable=True,
+)
 
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

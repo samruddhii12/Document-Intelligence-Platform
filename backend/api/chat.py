@@ -410,7 +410,7 @@ def chat_with_document(
     context_parts = []
 
     for chunk in best_chunk_records:
-        source_parts = []
+        source_parts = [chunk["file_name"]]
 
         if chunk["page_number"] is not None:
             source_parts.append(
@@ -444,6 +444,7 @@ def chat_with_document(
     )
     sources = [
     {
+        "file_name": chunk["file_name"],
         "chunk_index": chunk["chunk_index"],
         "page_number": chunk["page_number"],
         "section_title": chunk["section_title"],
@@ -474,6 +475,7 @@ def chat_with_document(
         chat_session_id=chat_session.id,
         role="assistant",
         content=answer,
+        sources=sources,
     )
     return {
         "question": query,
@@ -514,6 +516,7 @@ def get_history(
                 {
                     "question": pending_question or "",
                     "answer": message.content,
+                    "sources": message.sources or [],
                     "timestamp": message.created_at.isoformat(),
                 }
             )

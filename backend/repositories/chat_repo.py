@@ -25,11 +25,14 @@ def add_message(
     chat_session_id: UUID,
     role: str,
     content: str,
+    sources: list[dict] | None = None,
+
 ) -> Message:
     message = Message(
         chat_session_id=chat_session_id,
         role=role,
         content=content,
+        sources=sources,
     )
 
     db.add(message)

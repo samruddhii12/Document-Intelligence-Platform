@@ -37,6 +37,21 @@ html, body, [data-testid="stAppViewContainer"] {
 
 #MainMenu, footer, [data-testid="stToolbar"],
 [data-testid="stDecoration"] { display: none !important; }
+.source-item {
+    color: #6B6258;
+    font-size: 0.72rem;
+    line-height: 1.5;
+    margin: 0.15rem 0 0.35rem 0;
+}
+
+.source-label {
+    color: #A06A3B;
+    font-size: 0.62rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    margin-top: 0.5rem;
+}
 
 /* ── Hero ── */
 .hero {
@@ -484,8 +499,60 @@ if st.session_state.session_id:
             </div>
             """, unsafe_allow_html=True)
 
-        st.markdown('</div>', unsafe_allow_html=True)
+            sources = chat.get("sources", [])
 
+            if sources:
+                st.markdown(
+                '<div class="source-label">Sources</div>',
+                unsafe_allow_html=True,
+            )
+
+            for source in sources:
+                file_name = source.get("file_name", "Document")
+                page_number = source.get("page_number")
+                section_title = source.get("section_title")
+                chunk_index = source.get("chunk_index")
+
+                parts = [file_name]
+
+                if page_number is not None:
+                    parts.append(f"Page {page_number}")
+
+                if section_title:
+                    parts.append(f"Section: {section_title}")
+
+                if chunk_index is not None:
+                    parts.append(f"Chunk {chunk_index}")
+
+                source_text = " · ".join(parts)
+
+                st.markdown(
+                    f'<div class="source-item">{source_text}</div>',
+                    unsafe_allow_html=True,
+                )
+                # st.markdown(
+                #     '<div class="bubble-label" style="margin-top:0.35rem;">Sources</div>',
+                #     unsafe_allow_html=True,
+                # )
+
+                # for source in sources:
+                #     file_name = source.get("file_name", "Document")
+                #     page_number = source.get("page_number")
+                #     section_title = source.get("section_title")
+                #     chunk_index = source.get("chunk_index")
+
+                #     parts = [file_name]
+
+                #     if page_number is not None:
+                #         parts.append(f"Page {page_number}")
+
+                #     if section_title:
+                #         parts.append(f"Section: {section_title}")
+
+                #     if chunk_index is not None:
+                #         parts.append(f"Chunk {chunk_index}")
+
+                #     st.caption(" · ".join(parts))
     st.markdown('<hr class="soft-divider">', unsafe_allow_html=True)
 
 # ── Danger zone ───────────────────────────────────────────────────────────
