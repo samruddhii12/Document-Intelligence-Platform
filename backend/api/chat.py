@@ -1,6 +1,13 @@
 from fastapi import APIRouter, HTTPException
-from backend.services.text_extractor import extract_text
-from backend.services.chunker import chunk_text
+from backend.services.text_extractor import (
+    extract_text,
+    extract_document_segments,
+)
+
+from backend.services.chunker import (
+    chunk_text,
+    chunk_segments,
+)
 from backend.services.embeddings import generate_embeddings
 from backend.services.vector_store import rerank_chunks
 from backend.services.llm import generate_answer
@@ -138,10 +145,25 @@ def embed_document(
             status="processing",
         )
 
+        # file_path = get_document_path(session_id)
+
+        # text = extract_text(str(file_path))
+        # chunks = chunk_text(text)
+
+        # if not chunks:
+        #     raise HTTPException(
+        #         status_code=400,
+        #         detail="No text chunks generated",
+        #     )
+
+        # embeddings = generate_embeddings(chunks)
         file_path = get_document_path(session_id)
 
-        text = extract_text(str(file_path))
-        chunks = chunk_text(text)
+        segments = extract_document_segments(
+            str(file_path)
+        )
+
+        chunks = chunk_segments(segments)
 
         if not chunks:
             raise HTTPException(
@@ -149,7 +171,14 @@ def embed_document(
                 detail="No text chunks generated",
             )
 
-        embeddings = generate_embeddings(chunks)
+        chunk_contents = [
+            chunk["content"]
+            for chunk in chunks
+        ]
+
+        embeddings = generate_embeddings(
+            chunk_contents
+        )
 
         if embeddings.size == 0:
             raise HTTPException(
@@ -269,6 +298,8 @@ def retrieve_chunks(
         "results": [
             {
                 "chunk_index": chunk.chunk_index,
+                "page_number": chunk.page_number,
+            "section_title": chunk.section_title,
                 "content": chunk.content,
                 "distance": distance,
                 "similarity": 1 - distance,
@@ -336,9 +367,15 @@ def chat_with_document(
     )
 
     retrieved_chunks = [
-        chunk.content
-        for chunk, _ in results
-    ]
+    {
+        "content": chunk.content,
+        "chunk_index": chunk.chunk_index,
+        "page_number": chunk.page_number,
+        "section_title": chunk.section_title,
+        "file_name": document.filename,
+    }
+    for chunk, _ in results
+]
 
     if not retrieved_chunks:
         raise HTTPException(
@@ -349,19 +386,54 @@ def chat_with_document(
     # ----------------------------------------
     # 3. CrossEncoder reranking
     # ----------------------------------------
-
+    rerank_input = [
+    chunk["content"]
+    for chunk in retrieved_chunks
+]
     best_chunks = rerank_chunks(
         query,
-        retrieved_chunks,
+        rerank_input,
         top_n=RERANK_TOP_N,
     )
+    best_chunk_records = []
+
+    for best_content in best_chunks:
+        for chunk in retrieved_chunks:
+            if chunk["content"] == best_content:
+                best_chunk_records.append(chunk)
+                break
 
     # ----------------------------------------
     # 4. Build LLM context
     # ----------------------------------------
 
-    context = "\n\n---\n\n".join(best_chunks)
+    context_parts = []
 
+    for chunk in best_chunk_records:
+        source_parts = []
+
+        if chunk["page_number"] is not None:
+            source_parts.append(
+                f"Page {chunk['page_number']}"
+            )
+
+        if chunk["section_title"]:
+            source_parts.append(
+                f"Section: {chunk['section_title']}"
+            )
+
+        source_parts.append(
+            f"Chunk {chunk['chunk_index']}"
+        )
+
+        source_label = " | ".join(source_parts)
+
+        context_parts.append(
+            f"[Source: {source_label}]\n"
+            f"{chunk['content']}"
+        )
+
+    context = "\n\n---\n\n".join(context_parts)
     # ----------------------------------------
     # 5. Generate answer
     # ----------------------------------------
@@ -370,6 +442,14 @@ def chat_with_document(
         context,
         query,
     )
+    sources = [
+    {
+        "chunk_index": chunk["chunk_index"],
+        "page_number": chunk["page_number"],
+        "section_title": chunk["section_title"],
+    }
+    for chunk in best_chunk_records
+]
 
     # ----------------------------------------
     # 6. Existing history system
@@ -398,6 +478,7 @@ def chat_with_document(
     return {
         "question": query,
         "answer": answer,
+        "sources": sources,
     }
 
 

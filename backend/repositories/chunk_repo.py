@@ -60,22 +60,25 @@ def delete_document_chunks(
 def create_chunks_bulk(
     db: Session,
     document_id: UUID,
-    chunks: list[str],
+    chunks: list[dict],
     embeddings,
 ) -> list[Chunk]:
     chunk_rows = []
 
-    for index, (content, embedding) in enumerate(
-        zip(chunks, embeddings)
+    for chunk, embedding in zip(
+        chunks,
+        embeddings,
     ):
-        chunk = Chunk(
+        chunk_row = Chunk(
             document_id=document_id,
-            chunk_index=index,
-            content=content,
+            chunk_index=chunk["chunk_index"],
+            content=chunk["content"],
+            page_number=chunk.get("page_number"),
+            section_title=chunk.get("section_title"),
             embedding=embedding.tolist(),
         )
 
-        chunk_rows.append(chunk)
+        chunk_rows.append(chunk_row)
 
     db.add_all(chunk_rows)
     db.commit()
