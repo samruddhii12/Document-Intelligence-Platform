@@ -31,8 +31,7 @@ class ChatRequest(BaseModel):
 
 @router.get("/extract/{session_id}")
 def extract_document_text(session_id: str):
-    session_path = session_path = os.path.join(STORAGE_DIR, session_id)
-
+    session_path = os.path.join(STORAGE_DIR, session_id)
     if not os.path.exists(session_path):
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -56,7 +55,7 @@ def extract_document_text(session_id: str):
 
 @router.get("/chunk/{session_id}")
 def chunk_document(session_id: str):
-    session_path = session_path = os.path.join(STORAGE_DIR, session_id)
+    session_path = os.path.join(STORAGE_DIR, session_id)
 
     if not os.path.exists(session_path):
         raise HTTPException(status_code=404, detail="Session not found")
