@@ -457,26 +457,44 @@ if st.session_state.session_id:
         st.warning("Document is still being indexed. Please wait a moment.")
         st.stop()
 
-    question = st.text_input(
-        "Your question",
-        placeholder="e.g. Summarize the key findings in section 2",
-        label_visibility="visible",
-        key="question_input"
-    )
+    with st.form("question_form", clear_on_submit=True):
+        question = st.text_input(
+            "Your question",
+            placeholder="e.g. Summarize the key findings in section 2",
+            label_visibility="visible",
+        )
 
-    if question:
+        ask_submitted = st.form_submit_button("Ask →")
+
+
+    if ask_submitted and question.strip():
         with st.spinner("Thinking…"):
             try:
                 response = requests.post(
                     f"{BACKEND_URL}/chat/{st.session_state.session_id}",
-                    json={"query": question, "top_k": 10}
+                    json={
+                        "query": question.strip(),
+                        "top_k": 10,
+                    },
+                    timeout=120,
                 )
+
+                response.raise_for_status()
+
                 result = response.json()
 
-                # Fetch full updated history from backend
-                history_res = requests.get(f"{BACKEND_URL}/history/{st.session_state.session_id}")
-                st.session_state.chat_history = history_res.json().get("history", [])
-            except Exception as e:
+                history_res = requests.get(
+                    f"{BACKEND_URL}/history/{st.session_state.session_id}",
+                    timeout=30,
+                )
+
+                history_res.raise_for_status()
+
+                st.session_state.chat_history = (
+                    history_res.json().get("history", [])
+                )
+
+            except requests.RequestException as e:
                 st.error(f"Query failed: {e}")
 
     # ── Chat history display ───────────────────────────────────────────────
@@ -559,14 +577,30 @@ if st.session_state.session_id:
 if st.session_state.session_id:
     st.markdown('<div class="danger-label">Danger Zone</div>', unsafe_allow_html=True)
 
-    if st.button("🗑 Delete Session & Clear Data", key="delete_btn"):
+    if st.button(
+    "🗑 Delete Session & Clear Data",
+    key="delete_btn",):
+        session_id = st.session_state.session_id
+
         try:
-            requests.delete(f"{BACKEND_URL}/session/{st.session_state.session_id}")
-        except Exception:
-            pass
-        st.session_state.session_id = None
-        st.session_state.embedded = False
-        st.session_state.chat_history = []
-        st.success("Session cleared.")
+            with st.spinner("Deleting session…"):
+                response = requests.delete(
+                    f"{BACKEND_URL}/session/{session_id}",
+                    timeout=30,
+                )
+
+                response.raise_for_status()
+
+            st.session_state.session_id = None
+            st.session_state.embedded = False
+            st.session_state.chat_history = []
+
+            st.success("Session cleared.")
+            st.rerun()
+
+        except requests.RequestException as e:
+            st.error(
+                f"Could not delete session: {e}"
+            )
         st.rerun()
         
