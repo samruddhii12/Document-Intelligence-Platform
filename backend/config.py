@@ -36,3 +36,29 @@ if not DATABASE_URL:
         "DATABASE_URL is not configured. "
         "Set it in your .env file."
     )
+
+# ----------------------------------------------------------------------
+# Authentication (Phase 3.3 - 3.6)
+# ----------------------------------------------------------------------
+
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
+
+if not JWT_SECRET_KEY:
+    raise RuntimeError(
+        "JWT_SECRET_KEY is not configured. Set it in your .env file. "
+        "Generate one with: "
+        "python -c \"import secrets; print(secrets.token_urlsafe(64))\""
+    )
+
+if len(JWT_SECRET_KEY) < 32:
+    raise RuntimeError(
+        "JWT_SECRET_KEY is too short. Use at least 32 characters."
+    )
+
+# Fixed on purpose: the algorithm is never taken from a token,
+# and is not configurable, to rule out algorithm-confusion attacks.
+JWT_ALGORITHM = "HS256"
+
+ACCESS_TOKEN_EXPIRE_MINUTES = int(
+    os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
+)
