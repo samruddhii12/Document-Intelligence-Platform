@@ -3,6 +3,7 @@ from datetime import datetime
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
+    Boolean,
     CheckConstraint,
     DateTime,
     ForeignKey,
@@ -17,6 +18,46 @@ from sqlalchemy.sql import func
 
 from backend.database import Base
 
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        primary_key=True,
+        default=uuid.uuid4,
+    )
+
+    email: Mapped[str] = mapped_column(
+        String(320),
+        unique=True,
+        nullable=False,
+        index=True,
+    )
+
+    password_hash: Mapped[str] = mapped_column(
+        Text,
+        nullable=False,
+    )
+
+    is_active: Mapped[bool] = mapped_column(
+        Boolean,
+        nullable=False,
+        default=True,
+        server_default="true",
+    )
+
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        nullable=False,
+    )
+
+    workspaces: Mapped[list["Workspace"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
 class Workspace(Base):
     __tablename__ = "workspaces"
@@ -47,6 +88,15 @@ class Workspace(Base):
         back_populates="workspace",
         cascade="all, delete-orphan",
     )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+    UUID(as_uuid=True),
+    ForeignKey("users.id", ondelete="CASCADE"),
+    nullable=False,
+    index=True,
+)
+    user: Mapped["User"] = relationship(
+    back_populates="workspaces",
+)
 
 
 class Document(Base):
