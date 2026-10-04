@@ -20,11 +20,11 @@ sentence-transformers==2.6.1
 tiktoken==0.6.0
 
 # Vector Database / Semantic Search
-faiss-cpu==1.13.2
+faiss-cpu==1.13.2            # no longer used by the code (pgvector replaced it)
 
 # LLM Orchestration & Integration
-langchain==0.1.16
-langchain-community==0.0.32
+langchain==0.1.16            # not currently used by the code
+langchain-community==0.0.32  # not currently used by the code
 
 # Frontend
 streamlit==1.32.0
@@ -37,3 +37,17 @@ pandas==2.0.3
 # Utilities
 pydantic==2.6.4
 pydantic-settings==2.0.0
+
+# ----------------------------------------------------------------------------
+# Database layer (PostgreSQL + pgvector)  -- imported by the code
+# ----------------------------------------------------------------------------
+SQLAlchemy==2.0.29
+psycopg2-binary==2.9.9
+pgvector==0.2.5
+
+# ----------------------------------------------------------------------------
+# Authentication (Phase 3.3 - 3.6) -- not imported yet
+# ----------------------------------------------------------------------------
+bcrypt==4.1.2
+PyJWT==2.8.0
+email-validator==2.1.1
