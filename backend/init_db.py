@@ -1,5 +1,5 @@
-from backend.database import Base,engine
-import backend.models.db_models  # noqa
+from alembic import command
+from alembic.config import Config
 if __name__=="__main__":
-    Base.metadata.create_all(engine)
-    print("Database schema created.")
+    command.upgrade(Config("alembic.ini"),"head")
+    print("Database migrations applied.")

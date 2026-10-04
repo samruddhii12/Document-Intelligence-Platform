@@ -1,0 +1,16 @@
+.git
+.env
+.env.*
+.venv
+venv
+**/__pycache__
+**/*.pyc
+.pytest_cache
+.vscode
+.idea
+.streamlit/secrets.toml
+frontend/.streamlit/secrets.toml
+storage
+tests
+*.log
+.DS_Store

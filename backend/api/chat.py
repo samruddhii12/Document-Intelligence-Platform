@@ -43,11 +43,18 @@ def ask(chat_id:UUID,p:ChatRequest,identity:Identity=Depends(get_identity),db:Se
         ch=h["chunk"]; fn=h["filename"]
         label=f"{fn} | Page {ch.page_number or '-'} | Chunk {ch.chunk_index}"
         context.append(f"[Source: {label}]\n{ch.content}")
-        sources.append({"file_name":fn,"document_id":str(ch.document_id),"page_number":ch.page_number,
+        sources.append({"file_name":fn,"document_id":str(ch.document_id),"page_number":ch.page_number,"location":ch.location,
                         "section_title":ch.section_title,"chunk_index":ch.chunk_index})
+    workspace_id=c.workspace_id
+    db.commit()
     response=answer("\n\n---\n\n".join(context),p.query,memory)
+    c=db.query(ChatSession).filter_by(id=chat_id).with_for_update().first()
+    if not c: raise HTTPException(409,"Chat was deleted during generation")
+    authorize_workspace(c.workspace,identity)
+    current={d.id for d in c.workspace.documents if d.status=="indexed"}
+    if not ids.issubset(current): raise HTTPException(409,"Source documents changed during generation")
     if c.title=="New chat": c.title=p.query[:80]
-    db.add(Message(chat_session_id=c.id,role="user",content=p.query))
+    db.add(Message(chat_session_id=c.id,role="user",content=p.query,sources=sources))
     db.add(Message(chat_session_id=c.id,role="assistant",content=response,sources=sources))
     db.commit()
     return {"answer":response,"sources":sources}
