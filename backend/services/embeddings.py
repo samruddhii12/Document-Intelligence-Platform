@@ -1,22 +1,19 @@
+from functools import lru_cache
+import logging
+from fastapi import HTTPException
 from sentence_transformers import SentenceTransformer
-from typing import List
-import numpy as np
+from backend.config import settings
 
-# Load once globally (important for performance)
-model = SentenceTransformer("all-mpnet-base-v2")
+@lru_cache(maxsize=1)
+def model():
+    return SentenceTransformer(settings.EMBEDDING_MODEL)
 
-
-def generate_embeddings(chunks: List[str]) -> np.ndarray:
-    """
-    Convert list of text chunks into embedding vectors.
-    """
-    if not chunks:
-        return np.array([])
-
-    embeddings = model.encode(
-        chunks,
-        convert_to_numpy=True,
-        show_progress_bar=False
-    )
-
-    return embeddings
+def embed_texts(texts: list[str]):
+    try:
+        vectors=model().encode(texts, normalize_embeddings=True)
+    except Exception as error:
+        logging.getLogger(__name__).exception("Embedding model failed")
+        raise HTTPException(503,"The embedding model could not load or encode text. Check the model installation and backend logs.") from error
+    if vectors.ndim != 2 or vectors.shape[1] != 768:
+        raise HTTPException(503,"The embedding model must produce 768 dimensions to match the database.")
+    return vectors

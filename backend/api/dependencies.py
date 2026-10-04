@@ -1,76 +1,37 @@
-"""
-Authentication dependencies (Phase 3.6).
-
-Use in routes:
-
-    current_user: User = Depends(get_current_user)       # login required
-    maybe_user: User | None = Depends(get_optional_user)  # login optional
-                                                         # (guests, Phase 3.7+)
-"""
-
-from fastapi import Depends, HTTPException, status
+from dataclasses import dataclass
+from fastapi import Depends, Header, HTTPException
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
-
 from backend.database import get_db
-from backend.models.db_models import User
-from backend.repositories.user_repo import get_user_by_id
+from backend.models.db_models import User, Workspace
 from backend.security import decode_access_token
 
+bearer = HTTPBearer(auto_error=False)
 
-# auto_error=False so we control the response and so the same scheme
-# can be used for routes where a login is optional.
-bearer_scheme = HTTPBearer(auto_error=False)
+@dataclass
+class Identity:
+    user: User | None
+    guest_id: str | None
 
+def get_identity(credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
+                 x_guest_id: str | None = Header(default=None),
+                 db: Session = Depends(get_db)) -> Identity:
+    if credentials:
+        uid = decode_access_token(credentials.credentials)
+        user = db.get(User, uid) if uid else None
+        if not user or not user.is_active:
+            raise HTTPException(401, "Invalid or expired token")
+        return Identity(user=user, guest_id=None)
+    return Identity(user=None, guest_id=x_guest_id.strip() if x_guest_id else None)
 
-def _unauthorized(detail: str) -> HTTPException:
-    return HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail=detail,
-        headers={"WWW-Authenticate": "Bearer"},
+def require_user(identity: Identity = Depends(get_identity)) -> User:
+    if not identity.user:
+        raise HTTPException(401, "Authentication required")
+    return identity.user
+
+def authorize_workspace(workspace: Workspace, identity: Identity):
+    ok = (identity.user and workspace.user_id == identity.user.id) or (
+        not identity.user and identity.guest_id and workspace.guest_id == identity.guest_id
     )
-
-
-def get_optional_user(
-    credentials: HTTPAuthorizationCredentials | None = Depends(
-        bearer_scheme
-    ),
-    db: Session = Depends(get_db),
-) -> User | None:
-    """
-    No Authorization header      -> None (anonymous / guest)
-    Valid token                  -> the User
-    Invalid or expired token     -> 401 (never silently treated as guest)
-    """
-    if credentials is None:
-        return None
-
-    user_id = decode_access_token(credentials.credentials)
-
-    if user_id is None:
-        raise _unauthorized("Invalid or expired token")
-
-    user = get_user_by_id(db=db, user_id=user_id)
-
-    if user is None:
-        raise _unauthorized("Invalid or expired token")
-
-    if not user.is_active:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Account is disabled",
-        )
-
-    return user
-
-
-def get_current_user(
-    user: User | None = Depends(get_optional_user),
-) -> User:
-    """
-    Login required. Returns the authenticated, active user.
-    """
-    if user is None:
-        raise _unauthorized("Not authenticated")
-
-    return user
+    if not ok:
+        raise HTTPException(404, "Workspace not found")

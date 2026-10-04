@@ -1,55 +1,47 @@
 import requests
+from fastapi import HTTPException
+from backend.config import settings
 
-from backend.config import OLLAMA_URL, OLLAMA_MODEL
+def generate(prompt: str, temperature: float = 0.1) -> str:
+    try:
+        r=requests.post(settings.OLLAMA_URL,json={
+            "model":settings.OLLAMA_MODEL,"prompt":prompt,"stream":False,
+            "options":{"temperature":temperature}
+        },timeout=(5,180))
+        r.raise_for_status()
+    except requests.Timeout as error:
+        raise HTTPException(504,"Ollama timed out. Please try again.") from error
+    except requests.ConnectionError as error:
+        raise HTTPException(503,"Ollama is unavailable. Start it with 'ollama serve' and check OLLAMA_URL in .env.") from error
+    except requests.HTTPError as error:
+        if r.status_code == 404:
+            raise HTTPException(503,f"Ollama model '{settings.OLLAMA_MODEL}' is unavailable. Install it with 'ollama pull {settings.OLLAMA_MODEL}'.") from error
+        raise HTTPException(502,"Ollama could not generate a response. Check its server logs.") from error
+    try:
+        response=r.json()["response"].strip()
+        if not response:
+            raise ValueError("Empty response")
+        return response
+    except (ValueError,KeyError,AttributeError,TypeError) as error:
+        raise HTTPException(502,"Ollama returned an invalid response. Please try again.") from error
 
+def answer(context: str, question: str, memory: str="") -> str:
+    return generate(f"""You are a grounded document intelligence assistant.
+Use ONLY the supplied document context for factual claims. If the answer is not supported, say so.
+Conversation context is only for resolving references; it is not evidence.
 
-def generate_answer(context: str, question: str) -> str:
-    prompt = f"""
-You are a document question-answering assistant.
+Conversation:
+{memory}
 
-Answer the user's question ONLY using the provided context.
-
-Rules:
-1. Do not use outside knowledge.
-2. If the answer is not supported by the context, say:
-   "I could not find enough information in the document to answer this."
-3. The context may contain source labels such as:
-   [Source: annual_report.pdf | Page 4 | Chunk 8]
-   [Source: policy.docx | Section: Revenue | Chunk 12]
-4. When you use information from a source, cite it in the answer.
-5. Use concise citations such as:
-   [annual_report.pdf, Page 4]
-   [annual_report.pdf, Page 4, Chunk 8]
-   [policy.docx, Section: Revenue]
-6. Do not invent filenames, page numbers, sections, chunks, or citations.
-7. Prefer filename + page number when a page number is available.
-8. If multiple sources support the answer, cite the most relevant sources.
-9. Use the source labels exactly as provided in the context.
-
-Context:
+Document context:
 {context}
 
-Question:
-{question}
+Question: {question}
 
-Answer:
-"""
+Answer clearly and concisely.""")
 
-    response = requests.post(
-        OLLAMA_URL,
-        json={
-            "model": OLLAMA_MODEL,
-            "prompt": prompt,
-            "stream": False,
-        },
-        timeout=120,
-    )
+def summarize(text: str) -> str:
+    return generate(f"Summarize this document faithfully. Include purpose, key points, conclusions and important numbers.\n\n{text[:24000]}")
 
-    if response.status_code != 200:
-        raise Exception(
-            f"Ollama error: {response.text}"
-        )
-
-    result = response.json()
-
-    return result.get("response", "").strip()
+def suggested_questions(text: str) -> str:
+    return generate(f"Return exactly 5 useful questions a reader could ask about this document, one per line.\n\n{text[:12000]}")

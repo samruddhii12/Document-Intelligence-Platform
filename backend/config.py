@@ -1,64 +1,28 @@
-import os
 from pathlib import Path
-from dotenv import load_dotenv
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
-load_dotenv()
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    DATABASE_URL: str
+    JWT_SECRET_KEY: str
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    OLLAMA_URL: str = "http://localhost:11434/api/generate"
+    OLLAMA_MODEL: str = "llama3.2:3b"
+    EMBEDDING_MODEL: str = "sentence-transformers/all-mpnet-base-v2"
+    STORAGE_DIR: Path = Path("storage/sessions")
+    CHUNK_SIZE: int = 700
+    CHUNK_OVERLAP: int = 120
+    RETRIEVAL_TOP_K: int = 12
+    RERANK_TOP_N: int = 5
+    GUEST_TTL_HOURS: int = 24
+    CORS_ORIGINS: str = "http://localhost:8501"
+    MAX_UPLOAD_MB: int = 20
 
-BASE_DIR = Path(__file__).resolve().parent
+    @property
+    def cors_origins(self):
+        return [x.strip() for x in self.CORS_ORIGINS.split(",") if x.strip()]
 
-STORAGE_DIR = Path(
-    os.getenv(
-        "STORAGE_DIR",
-        BASE_DIR / "storage" / "sessions"
-    )
-)
-
-OLLAMA_URL = os.getenv(
-    "OLLAMA_URL",
-    "http://localhost:11434/api/generate"
-)
-
-OLLAMA_MODEL = os.getenv(
-    "OLLAMA_MODEL",
-    "tinyllama"
-)
-
-CHUNK_SIZE = int(os.getenv("CHUNK_SIZE", "500"))
-CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "100"))
-
-RETRIEVAL_TOP_K = int(os.getenv("RETRIEVAL_TOP_K", "10"))
-RERANK_TOP_N = int(os.getenv("RERANK_TOP_N", "5"))
-
-DATABASE_URL = os.getenv("DATABASE_URL")
-
-if not DATABASE_URL:
-    raise RuntimeError(
-        "DATABASE_URL is not configured. "
-        "Set it in your .env file."
-    )
-
-# ----------------------------------------------------------------------
-# Authentication (Phase 3.3 - 3.6)
-# ----------------------------------------------------------------------
-
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
-
-if not JWT_SECRET_KEY:
-    raise RuntimeError(
-        "JWT_SECRET_KEY is not configured. Set it in your .env file. "
-        "Generate one with: "
-        "python -c \"import secrets; print(secrets.token_urlsafe(64))\""
-    )
-
-if len(JWT_SECRET_KEY) < 32:
-    raise RuntimeError(
-        "JWT_SECRET_KEY is too short. Use at least 32 characters."
-    )
-
-# Fixed on purpose: the algorithm is never taken from a token,
-# and is not configurable, to rule out algorithm-confusion attacks.
-JWT_ALGORITHM = "HS256"
-
-ACCESS_TOKEN_EXPIRE_MINUTES = int(
-    os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")
-)
+settings = Settings()
+if len(settings.JWT_SECRET_KEY) < 32:
+    raise RuntimeError("JWT_SECRET_KEY must contain at least 32 characters")
+settings.STORAGE_DIR.mkdir(parents=True, exist_ok=True)

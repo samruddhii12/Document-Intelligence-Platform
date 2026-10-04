@@ -1,145 +1,81 @@
-# DocMind — Document Intelligence Platform
+# Document Intelligence Platform — Complete Edition
 
-A privacy-first document Q&A system that lets you upload any PDF or DOCX file and have a conversation with it — entirely on your local machine, no data sent anywhere.
+A privacy-oriented document intelligence/RAG application built with FastAPI, Streamlit, PostgreSQL + pgvector, Sentence Transformers and a local Ollama LLM.
 
----
+## Implemented roadmap
 
-## What It Does
+**Phase 1 — Persistence:** PostgreSQL, pgvector, documents, chunks, workspaces, chats and messages.
 
-Upload a document, ask questions in plain language, and get accurate answers grounded in the document's content. Everything runs locally using open-source models.
+**Phase 2 — Grounded RAG:** page/section/chunk-aware sources, semantic retrieval and citations.
 
-- **Document Q&A** — Ask anything about your uploaded document and get context-aware answers
-- **Semantic Search** — Finds the most relevant sections of your document, not just keyword matches
-- **Reranking** — Retrieved chunks are reranked by a cross-encoder for higher answer quality
-- **Chat History** — Every Q&A session is saved per document and restored across page reloads
-- **Session Management** — Each uploaded document gets its own isolated session with stored embeddings
-- **Fully Local** — No API keys, no cloud, no data leaves your machine
+**Phase 3 — Identity & authorization:** signup/login, bcrypt, JWT, guest identities, user/guest workspace isolation, guest-to-account claim endpoint, logout and expiry handling.
 
----
+**Phase 4 — Dashboard/history:** persistent workspaces, documents, chat sessions and resumable conversation history.
 
-## Tech Stack
+**Phase 5 — Multi-document workspaces:** many documents per workspace and document-scoped or workspace-wide Q&A.
 
-| Layer | Technology |
-|-------|-----------|
-| Frontend | Streamlit |
-| Backend | FastAPI |
-| Embeddings | `sentence-transformers` (all-mpnet-base-v2) |
-| Vector Search | FAISS |
-| Reranking | CrossEncoder (ms-marco-MiniLM-L-6-v2) |
-| LLM | Ollama (tinyllama by default) |
-| Text Extraction | pypdf, python-docx |
-| Tokenization | tiktoken |
+**Phase 6 — Conversational memory:** bounded recent-message context for reference resolution; document context remains evidence.
 
----
+**Phase 7 — Hybrid retrieval/evaluation:** pgvector semantic retrieval + BM25-style keyword retrieval using reciprocal-rank fusion. `eval/` contains a reproducible evaluation scaffold. No fake quality metrics are claimed.
 
-## Quick Start
+**Phase 8 — Production foundation:** environment configuration, Docker Compose, CORS configuration, upload limits, logging, health endpoint, tests and isolated storage. Before internet deployment, add reverse-proxy TLS, a managed secret store, rate limiting at the gateway, monitoring and a full Alembic migration history.
 
-**1. Create and activate a virtual environment**
-```bash
-python -m venv venv
-.\venv\Scripts\Activate.ps1   # Windows PowerShell
-source venv/bin/activate       # macOS / Linux
+**Phase 9 — Advanced intelligence:** summaries, suggested questions and document comparison endpoints. PDF/DOCX extraction is included. OCR dependencies are installed for extension to scanned PDFs; scanned-PDF fallback should be validated for your deployment before treating OCR as production-ready.
+
+## Architecture
+
+Browser → Streamlit → FastAPI → PostgreSQL/pgvector<br>
+                         ↘ Ollama<br>
+                         ↘ local document storage
+
+Ownership is attached at the workspace level:
+`User/Guest → Workspace → Documents → Chunks`
+and
+`Workspace → Chat Sessions → Messages`.
+
+## Quick start (local)
+
+1. Install PostgreSQL with pgvector and Ollama.
+2. Pull a model, for example `ollama pull llama3.2:3b`.
+3. Create `.env` using the configuration below and set a strong `JWT_SECRET_KEY`. Environment files are intentionally excluded from this repository.
+4. Create the database and enable pgvector:
+   `CREATE EXTENSION IF NOT EXISTS vector;`
+5. Create and activate a Python 3.11 environment, then install packages: `python3.11 -m venv .venv`, `source .venv/bin/activate`, `python -m pip install -r requirements.txt`.
+6. For local execution, set `DATABASE_URL` to your local PostgreSQL user/database and `OLLAMA_URL=http://127.0.0.1:11434/api/generate` in `.env`. Set `OLLAMA_MODEL` to an installed model shown by `ollama list`, and start Ollama with `ollama serve` if needed. For Docker, use `db` as the database host and `host.docker.internal` as the Ollama host.
+7. Create tables: `.venv/bin/python -m backend.init_db`. On an existing database, also apply the SQL files in `migrations/` in filename order with `psql -v ON_ERROR_STOP=1 --single-transaction -f <file>` using your connection arguments. The initializer creates missing tables but does not alter existing ones.
+8. Start backend: `.venv/bin/python -m uvicorn backend.main:app --reload`.
+9. From the project root, create `.streamlit/secrets.toml` with `API_URL="http://127.0.0.1:8000"`.
+10. In a separate terminal, start frontend: `.venv/bin/python -m streamlit run frontend/app.py`.
+
+Example `.env` configuration (replace the placeholders):
+
+```dotenv
+DATABASE_URL=postgresql+psycopg2://YOUR_USER:YOUR_PASSWORD@localhost:5432/YOUR_DATABASE
+JWT_SECRET_KEY=YOUR_RANDOM_SECRET_AT_LEAST_32_CHARACTERS
+OLLAMA_URL=http://127.0.0.1:11434/api/generate
+OLLAMA_MODEL=qwen2.5:3b
 ```
 
-**2. Install dependencies**
-```bash
-pip install -r requirements.txt
-```
+Generate a JWT secret with `python -c "import secrets; print(secrets.token_hex(32))"`.
 
-**3. Install Ollama and pull the model**
-```bash
-# Download from https://ollama.ai, then:
-ollama pull tinyllama
-```
+Tests are retained locally and intentionally excluded from this repository. In the original development workspace, run the endpoint and frontend integration checks with `RUN_DB_TESTS=1 HF_HUB_OFFLINE=1 .venv/bin/python -m pytest -q`. These checks use `.env`, temporary uploaded files, and database transactions that are rolled back. They require PostgreSQL, a cached embedding model, and Ollama with the configured model installed.
 
-**4. Start the backend**
-```bash
-uvicorn backend.main:app --reload --host 127.0.0.1 --port 8000
-```
+## Docker
 
-**5. Start the frontend** (new terminal)
-```bash
-streamlit run frontend/app.py
-```
+Ollama normally runs on the host. Then:
 
-**6. Open in browser**
-- App → `http://localhost:8501`
-- API docs → `http://localhost:8000/docs`
+`docker compose up --build`
 
----
+Open Streamlit at `http://localhost:8501`.
 
-## How It Works
+## Important security notes
 
-1. **Upload** — File is saved to a unique session folder on disk
-2. **Embed** — Document is extracted, split into overlapping token chunks, and embedded using a sentence transformer model
-3. **Index** — Embeddings are stored in a FAISS index alongside the raw chunks
-4. **Query** — Your question is embedded, top-K similar chunks are retrieved from FAISS, reranked by a cross-encoder, and passed as context to the LLM
-5. **Answer** — The local Ollama model generates an answer strictly based on the retrieved context
-6. **History** — Each Q&A pair is appended to a `history.json` file inside the session folder
+Never commit `.env`. Rotate a JWT secret if it is ever exposed. Guest IDs are bearer credentials and must remain unguessable. All workspace/document/chat operations are owner checked. Production deployments should terminate HTTPS in front of the application and use a proper secret manager.
 
----
+## Evaluation
 
-## Codebase
+Copy `eval/questions.example.json` to your own dataset. Use real documents and expected evidence. Evaluate retrieval recall, citation correctness, groundedness and answer relevance. Do not claim percentage improvements until measured.
 
-```
-DocMind/
-├── backend/
-│   ├── main.py                 # FastAPI app entry point, router registration
-│   ├── api/
-│   │   ├── upload.py           # POST /upload — saves file, creates session
-│   │   ├── chat.py             # POST /embed, POST /chat, GET /history
-│   │   └── delete.py           # DELETE /session/{id} — wipes session folder
-│   ├── services/
-│   │   ├── text_extractor.py   # Extracts text from PDF and DOCX
-│   │   ├── chunker.py          # Paragraph-aware token chunking with overlap
-│   │   ├── embeddings.py       # Generates embeddings via sentence-transformers
-│   │   ├── vector_store.py     # FAISS index creation, search, and reranking
-│   │   └── llm.py              # Sends prompt + context to local Ollama model
-│   ├── models/
-│   │   └── schemas.py          # Pydantic request/response schemas
-│   ├── storage/
-│   │   └── sessions/           # Per-session folders: file, chunks, index, history
-│   └── utils/
-│       └── cleanup.py          # Deletes session folder on request
-└── frontend/
-    └── app.py                  # Streamlit UI — upload, chat, history display
-```
+## Current practical limitations
 
----
-
-## API Reference
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/` | Health check |
-| POST | `/upload` | Upload a PDF or DOCX file |
-| POST | `/embed/{session_id}` | Extract, chunk, and index the document |
-| POST | `/chat/{session_id}` | Ask a question, get an answer |
-| GET | `/history/{session_id}` | Fetch saved Q&A history for a session |
-| DELETE | `/session/{session_id}` | Delete session and all associated data |
-
----
-
-## Configuration
-
-**Change the LLM model** in `backend/services/llm.py`:
-```python
-MODEL_NAME = "tinyllama"  # any model pulled via ollama
-```
-
-**Change chunk size** in `backend/services/chunker.py`:
-```python
-chunk_size = 500   # tokens per chunk
-overlap    = 100   # token overlap between chunks
-```
-
----
-
-## Troubleshooting
-
-| Problem | Fix |
-|---------|-----|
-| `Connection refused (port 11434)` | Start Ollama — it must be running in the background |
-| `Model not found: tinyllama` | Run `ollama pull tinyllama` |
-| Slow first response | Models and embeddings load once on startup; subsequent calls are faster |
-| Empty answers | Try rephrasing your question or increasing `top_k` in the chat request |
+This package is a complete reference implementation, but production deployment still requires environment-specific validation. OCR/scanned PDFs, very large corpora, concurrency/load, model quality and RAG metrics depend on your machine, chosen Ollama model and documents. The code intentionally does not invent those results.
