@@ -1,5 +1,6 @@
 import uuid
 from datetime import datetime
+from typing import Optional
 
 from pgvector.sqlalchemy import Vector
 from sqlalchemy import (
@@ -12,7 +13,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
-from sqlalchemy.dialects.postgresql import JSONB, UUID, JSONB
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy.sql import func
 
@@ -88,15 +89,44 @@ class Workspace(Base):
         back_populates="workspace",
         cascade="all, delete-orphan",
     )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-    UUID(as_uuid=True),
-    ForeignKey("users.id", ondelete="CASCADE"),
-    nullable=False,
-    index=True,
-)
-    user: Mapped["User"] = relationship(
-    back_populates="workspaces",
-)
+
+    # ------------------------------------------------------------------
+    # Ownership (Phase 3.2)
+    #
+    # A workspace belongs to EITHER a registered user OR a guest:
+    #
+    #   registered workspace: user_id = <uuid>, guest_id = NULL
+    #   guest workspace:      user_id = NULL,   guest_id = <token>
+    #
+    # Both columns are nullable so guests can use the app without an
+    # account. chk_workspaces_single_owner enforces that a NEW workspace
+    # has exactly one owner. In the database this constraint is added
+    # NOT VALID so workspaces created before Phase 3 (which have no
+    # owner) are preserved - see migrations/001_workspace_ownership.sql
+    # ------------------------------------------------------------------
+    user_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+
+    guest_id: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        index=True,
+    )
+
+    user: Mapped[Optional["User"]] = relationship(
+        back_populates="workspaces",
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "(user_id IS NOT NULL) <> (guest_id IS NOT NULL)",
+            name="chk_workspaces_single_owner",
+        ),
+    )
 
 
 class Document(Base):
